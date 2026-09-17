@@ -699,6 +699,26 @@ dsh plugin --profile web remove <包名>     # 例如 dsh plugin --profile web r
 
 ---
 
+<a name="docs"></a>
+
+## 🗺️ 文档地图 · Docs
+
+首页只写「怎么装、怎么用」；规则、理由与实测记录都在 `docs/` 下。
+
+| 想了解 | 看这里 |
+|---|---|
+| **收录规则：什么能收、怎么收、目录怎么摆**（规范性，强制） | [`docs/收录规范.md`](./docs/收录规范.md) |
+| 快照是什么、为什么「收录的不一定是最新版本」、第三方插件为什么不在这里 | [`docs/收录快照说明.md`](./docs/收录快照说明.md) |
+| 每个 dsh 版本支持到什么程度、基线由哪个插件决定 | [`docs/版本兼容矩阵.md`](./docs/版本兼容矩阵.md) |
+| 兼容策略、踩过的坑、装不上时先查什么 | [`docs/注意事项.md`](./docs/注意事项.md) |
+| 市场那一侧（目录格式、每日同步、审核层级） | 市场仓库 [`dsh-plugins/docs/`](https://github.com/HaydenSmith1121/dsh-plugins/tree/main/docs) |
+
+> 本仓库只有**一个**脚本：`scripts/build-manifest.mjs`（生成 / 校验 `manifest.json`）。
+> 环境预检、隔离环境、四步校验那几个脚本都在市场仓库里 ——
+> 见 [`docs/注意事项.md`](./docs/注意事项.md) 开头那条说明。
+
+---
+
 <a name="license"></a>
 
 ## ⚖️ 许可
