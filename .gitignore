@@ -1,0 +1,12 @@
+# 本仓库是**产物仓库**：tarball 与源码都要进版本库，所以这里只忽略真正的临时物。
+
+node_modules/
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# 构建/测试的中间产物（各插件源码目录里可能有）
+.build/
+dist/
+.pnpm-store/

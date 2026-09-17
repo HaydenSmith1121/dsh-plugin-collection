@@ -1,0 +1,16 @@
+# 行尾一律 LF。
+#
+# 这不是洁癖：本仓库的 tarball 会在 CI 里被逐字节校验（`scripts/build-manifest.mjs --check`
+# 会重算 sha256 并与 plugin.json 比对），而市场侧的采集脚本也会算同一批文件的指纹。
+# 行尾被自动转换会让「同一份源码在 Windows 与 Linux 上打出的包不是同一个字节」，
+# 那种差异极难定位。所以显式钉死。
+* text=auto eol=lf
+
+# 二进制：绝不能被当作文本处理（否则 tar/gzip 会被改坏）
+*.tgz binary
+*.gz binary
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff binary
+*.woff2 binary
