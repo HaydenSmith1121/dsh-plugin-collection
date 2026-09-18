@@ -95,7 +95,7 @@ dsh plugin --profile web add /tmp/dsh-memory-0.1.0.tgz
 
 ## 🧩 插件一览
 
-**共 7 个插件 / 9 个版本**，全部以 dsh `0.1.6-alpha.1` 为基线。
+**共 8 个插件 / 10 个版本**，全部以 dsh `0.1.6-alpha.1` 为基线。
 
 | 插件 | 当前版本 | 作用 | 安装方式 |
 |---|---|---|---|
@@ -105,7 +105,8 @@ dsh plugin --profile web add /tmp/dsh-memory-0.1.0.tgz
 | [`dsh-memory`](#dsh-memory) | `0.1.0` | 跨会话长期记忆：turn 结束蒸馏成笔记，下次会话自动召回 | tarball → `dsh plugin add` |
 | [`dsh-opencode-go-plus`](#dsh-opencode-go-plus) | `0.3.0` | OpenCode Go 模型供应商（自研维护分支，取代 `dsh-opencode-go`） | tarball → `dsh plugin add`（**先卸旧包**） |
 | [`dsh-session-cleanup`](#dsh-session-cleanup) | `0.1.2` | 已归档会话的真实删除 + 清理「日志已删、id 仍归档」残渣 | tarball → `dsh plugin add` |
-| [`dsh-workbuddy-quota`](#dsh-workbuddy-quota) | `0.2.0` | WorkBuddy 剩余额度 + 本机 token 用量统计 | tarball → `dsh plugin add` |
+| [`dsh-usage-stats`](#dsh-usage-stats) | `0.3.0` | token 用量统计 + 只增不减的用量台账（**删会话不丢账**） | tarball → `dsh plugin add` |
+| [`dsh-workbuddy-quota`](#dsh-workbuddy-quota) | `0.2.0` ⚠️ 不再维护 | WorkBuddy 剩余额度 pill（用量统计部分已被 `dsh-usage-stats` 取代） | tarball → `dsh plugin add` |
 
 > 命令行只有一种装法：**`dsh plugin --profile web add <tarball 绝对路径>`**。
 > 差别只在 tarball 从哪来 —— 自己下载（下面各节）或由市场面板代下（[第五节](#two-ways)）。
@@ -120,6 +121,7 @@ dsh plugin --profile web add /tmp/dsh-memory-0.1.0.tgz
 | `dsh-memory` | `0.1.0` | `e773678ab7b681390a6e7f643ab0c5cee87d996c9d662da6ca004b1c17e60a3e` | 17663 |
 | `dsh-opencode-go-plus` | `0.3.0` | `481b8f6bbdee38dc15d2b5cc729fbe7bc25edea6ce52d0f11e69f5d66252cc37` | 65141 |
 | `dsh-session-cleanup` | `0.1.2` | `fec87c34041445c4edb5722ad0d70f9d834a1dc0dd94bbcc79e9370646dd1786` | 18328 |
+| `dsh-usage-stats` | `0.3.0` | `dbe6b427e67ce70c069ff0adbc41bfe4a4c4558db712eb6bb47a8b0eeff34cae` | 26727 |
 | `dsh-workbuddy-quota` | `0.2.0` | `744a39879202782bdbca4d8235094949b73accf7c2f0153841872aed2d2388f8` | 14507 |
 
 > 上表的 sha256 / 字节数全部取自 [`manifest.json`](./manifest.json)（本表由它派生）。
@@ -518,9 +520,73 @@ dsh plugin --profile web remove dsh-session-cleanup
 
 ---
 
+<a name="dsh-usage-stats"></a>
+
+### 7. `dsh-usage-stats` — token 用量统计（删会话不丢账）
+
+**作用**：在 **设置 → Token 用量**里按 Today / 近 7 天 / 近 30 天 / 全部统计这台 harness
+花了多少 token，给出总量与四个 provider 上报桶（未缓存输入 / 输出 / 缓存读取 / 缓存写入）、
+缓存读占比与模型调用次数。
+
+**它解决的核心问题是「删了也不丢」**：用量按会话逐个备份进一份**只增不减**的台账
+（`$DSH_HOME/storages/dsh-usage-stats/usage-ledger.json`），所以删除会话
+（`dsh-session-cleanup`、手删目录、归档清理）**不会**把它那部分用量从统计里抹掉。
+台账的两条规则是：**只增不减**（同一会话同一格子取「台账记录的」与「日志现在说的」中较大的
+一份，日志被压缩 / 截断也降不下来）、**从不删除**（没有淘汰 / TTL / 上限）。
+后台每 30 秒巡检一次（按 `mtime`+`size` 记忆化），不需要有人打开设置页也会记账。
+
+| 项 | 值 |
+|---|---|
+| 版本 | `0.3.0` |
+| tarball | `plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz` |
+| sha256 | `dbe6b427e67ce70c069ff0adbc41bfe4a4c4558db712eb6bb47a8b0eeff34cae` |
+| 字节数 | 26727 |
+| peer 结论 | `ok` —— 只约束 cordis 与 react，不对 dsh 运行时版本通道设 pin |
+| 需要配置 | ❌ **不要**（无 API Key、无设置项、无环境变量） |
+| 源码 | https://github.com/HaydenSmith1121/dsh-usage-stats |
+| 取代 | `dsh-workbuddy-quota@0.2.0`（`replaces`）—— 后者不再维护 |
+
+**安装**
+
+```powershell
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz -OutFile $env:TEMP\dsh-usage-stats-0.3.0.tgz
+(Get-FileHash $env:TEMP\dsh-usage-stats-0.3.0.tgz -Algorithm SHA256).Hash.ToLower()   # 应为 dbe6b427e67ce70c069ff0adbc41bfe4a4c4558db712eb6bb47a8b0eeff34cae
+dsh plugin --profile web add $env:TEMP\dsh-usage-stats-0.3.0.tgz
+```
+
+```bash
+curl -fL -o /tmp/dsh-usage-stats-0.3.0.tgz https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz
+sha256sum /tmp/dsh-usage-stats-0.3.0.tgz
+dsh plugin --profile web add /tmp/dsh-usage-stats-0.3.0.tgz
+```
+
+**配置**：**不需要填任何东西。** 唯一的路径约定是台账的位置（由 `$DSH_HOME` 推导，
+未设置时用 `~/.dsh`）。
+
+> 宿主半需要**进程重启**才会挂上路由 —— 重启前页面会明说这一点，而不是给一个裸 404。
+> 台账不可写 / 曾损坏时，页面会**显式报出**（给路径与原因），不会假装保留仍然生效。
+
+**卸载**
+
+```bash
+dsh plugin --profile web remove dsh-usage-stats
+```
+
+> 卸载**不会**删台账；想清空统计就删掉 `$DSH_HOME/storages/dsh-usage-stats/`。
+> 细节（折叠为什么必须复刻 DSH 自己的投影、三个 load-bearing 细节、已知统计边界）见
+> [`plugins/dsh-usage-stats/README.md`](./plugins/dsh-usage-stats/README.md)，
+> 实测证据见源码仓库的 `docs/verification.md`。
+
+---
+
 <a name="dsh-workbuddy-quota"></a>
 
-### 7. `dsh-workbuddy-quota` — WorkBuddy 额度与用量
+### 8. `dsh-workbuddy-quota` — WorkBuddy 额度与用量（⚠️ 不再维护）
+
+> **已被 [`dsh-usage-stats`](#dsh-usage-stats) 取代。** 0.2.0 的用量统计现场折叠会话日志，
+> 而日志会被 `dsh-session-cleanup` 删掉 —— **删一次会话就丢一次用量**；0.3.0 用只增不减的
+> 台账修掉了它。本版保留的是**回滚用的原样字节**，以及只有本包才有的 **WorkBuddy 额度 pill**。
+> **两个包不要同时装**（Token 用量会重复一页）。
 
 **作用**：在界面上显示 WorkBuddy 的**剩余额度**（composer 模型选择器旁的积分 pill），
 并统计**本机 harness 花了多少 token**（设置 → Token usage，可选 Today / Last 7 days /
@@ -819,7 +885,7 @@ dsh plugin --profile web remove <包名>     # 例如 dsh plugin --profile web r
 | `dsh-connect-trae` | **派生分支**：上游 [`dingminhua/dsh-connect-trae`](https://github.com/dingminhua/dsh-connect-trae) `v2.0.4`（版权 © 2026 LaoDing）的完整代码，本仓库只改 `src/shim.ts`、`src/adapter.ts`、`src/index.ts` 三个文件的启动链 | MIT（上游许可；归属见包内 `LICENSE`、`THIRD_PARTY_NOTICES.md` 与 `FORK.md`） |
 | `dsh-opencode-go-plus` | 派生自 [`Duskriver/dsh-opencode-go`](https://github.com/Duskriver/dsh-opencode-go) `@0.1.2`；其适配器、设置 UI 与 `src/conversion/*` 又派生自 DeepSeek Harness | MIT（归属见包内 `THIRD_PARTY_NOTICES.md` 与 `docs/derivation.md`） |
 | `dsh-excel-viewer` | **内联分发** SheetJS Community Edition `0.20.3`（版权 © 2012-present SheetJS LLC） | Apache-2.0（全文见 <https://www.apache.org/licenses/LICENSE-2.0>；归属见包内 `THIRD_PARTY_NOTICES.md`） |
-| 其余 4 个 | 无第三方成分 | MIT |
+| 其余 5 个 | 无第三方成分 | MIT |
 
 > `dsh-excel-viewer` 用的是 SheetJS 官方 CDN 的 `0.20.3`，不是 npm 上停在 2022 年的
 > `0.18.5` —— 后者带有已在后续版本修复的问题（CVE-2023-30533 原型污染、
@@ -828,6 +894,7 @@ dsh plugin --profile web remove <包名>     # 例如 dsh plugin --profile web r
 > 包内是否随附许可正文各不相同（`dsh-memory` 与 `dsh-workbuddy-quota` 的 tarball
 > **未附** `LICENSE` 正文，`plugin.json` 声明 MIT）。如实记录，不做补写。
 > `dsh-connect-trae` 随包附上游 `LICENSE` 全文，未做改写。
+> `dsh-usage-stats` **随包附** `LICENSE` 正文（源码仓库构建时就打进去了）。
 
 **第三方插件的版权归各自原作者所有。** 如你是某个插件的原作者、希望调整或移除收录方式，
 请开 Issue 或直接联系，我们会立即处理。

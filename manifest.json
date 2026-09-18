@@ -10,7 +10,7 @@
     "为每个插件生成市场侧的配置文件。所以这里的字段就是市场看到的全部事实。"
   ],
   "schemaVersion": 1,
-  "generatedAt": "2026-09-18T02:00:38.215Z",
+  "generatedAt": "2026-09-18T02:21:58.076Z",
   "repo": {
     "slug": "HaydenSmith1121/dsh-plugin-collection",
     "url": "https://github.com/HaydenSmith1121/dsh-plugin-collection",
@@ -22,9 +22,9 @@
     "profile": "web"
   },
   "counts": {
-    "total": 7,
+    "total": 8,
     "withSource": 2,
-    "versions": 9
+    "versions": 10
   },
   "plugins": [
     {
@@ -433,6 +433,69 @@
       ]
     },
     {
+      "id": "dsh-usage-stats",
+      "package": "dsh-usage-stats",
+      "version": "0.3.0",
+      "title": "Token 用量统计（删会话不丢账）",
+      "summary": "在设置里按天 / 供应商 / 模型统计这台 harness 的 token 用量，并把每个会话的用量备份成一份只增不减的台账 —— 删除会话不再连带删掉它的用量。",
+      "tags": [
+        "用量统计",
+        "自研",
+        "UI 面板"
+      ],
+      "author": "HaydenSmith1121",
+      "license": "MIT",
+      "repo": "https://github.com/HaydenSmith1121/dsh-usage-stats",
+      "homepage": null,
+      "origin": "self",
+      "originNote": "本仓库自研。源码在独立源码仓库 https://github.com/HaydenSmith1121/dsh-usage-stats —— 本仓库只保存验证过的 tarball 与不可变快照。",
+      "needsConfig": false,
+      "usageNeedsConfig": false,
+      "risky": false,
+      "peerRuntimePin": "@deepseek-ai/cordis ^4.0.2, react ^18.2.0",
+      "peerVerdict": "ok",
+      "peerNote": "只约束 cordis 与 react，不对 dsh 运行时版本通道设 pin。宿主半只 import node: 内置模块（zlib / fs / path / os），不 import 任何 @deepseek-ai/*，因此不存在 0.1.5 → 0.1.6 那类「缺具名导出 → 整棵树加载失败」的失败面；客户端半只 require('react')，只 inject 官方客户端半 dsh-client-locale 与 dsh-client-ui-settings（不再依赖 model-selection / conversation，因为积分 pill 没有迁进来）。它用到的宿主面只有 ctx.inject(['webServer']) + webServer.register({kind:'exact'})，两者都是 0.1.6-alpha.1 实测面。",
+      "coexistenceWarning": "与 dsh-workbuddy-quota 同时安装会出现两个 Token 用量设置分区（seat id 不同：usage-stats / token-usage，order 都是 40）。本包是它的继任者，建议卸掉旧包。",
+      "notes": "★ 这一版解决的是 dsh-workbuddy-quota@0.2.0 的结构性缺陷：0.2.0 每次都现场折叠 $DSH_HOME/sessions/ 下的会话日志，而会话日志是可以被删掉的（dsh-session-cleanup 就是 rm -rf 会话目录）——日志一没，那部分历史用量就从统计里凭空消失，用户清理一次侧边栏，数字就下降一次。0.3.0 在折叠之外加了一份「折叠结果的备份」：每次扫描把每个会话的用量按 (天, 供应商, 模型) 写进 $DSH_HOME/storages/dsh-usage-stats/usage-ledger.json，规则只有两条 —— 只增不减（同一会话同一格子取「台账记录的」与「日志现在说的」中较大的一份，日志被压缩 / 截断也降不下来）、从不删除（没有淘汰 / TTL / 上限）。报告 = 在场日志的折叠 ⊕ 台账里已消失会话的用量。★ 折叠算法逐字复刻 0.2.0（也就是 DSH 自己的 tokenUsage 投影），并用品格证明：scripts/verify-fold.mjs 用从真实 dsh-workbuddy-quota-0.2.0.tgz 里机器提取的参考实现，在 35 个真实会话日志（24 MiB）上逐字节比对通过 —— 改名与重构没有动用户的数字。★ 后台巡检每 30 秒一次（按 mtime+size 记忆化，未变过的日志不重读），所以不需要有人打开设置页也会记账；定时器 unref()，不会拖住进程退出。★ 失败面全部是 fail-soft 且必须显式报出：台账读不了 → 挪成 .corrupt.json 后重建并在页面说明「重建前的保留量不再计入」；台账写不了 → 页面直接给出台账路径与原因，并明说「删除会话会同时删掉它的用量」；会话根目录读不到 → 数字全部来自备份，但**不谎报**成「已删除」（单独报 unverifiedSessions）。★ 报告缓存 15 秒（多个标签页共享一次扫描），越过 TTL 才是新扫描。★ 已知边界：删除前 ≤30 秒的用量在极端情况下可能来不及入账（窗口 = 巡检间隔）；台账启用之前就被删掉的会话救不回来（日志已不在）；session/title-llm-request 花 token 但不记 usage 样本，DSH 自己的投影有同样盲点；fork 继承的前缀不重复计费。★ 副作用面：不持有凭据、不联系 provider、不改模型路由，唯一写入就是那份台账。★ 与旧包的关系：积分 pill（WorkBuddy 剩余额度）**没有**迁进来 —— 它读的是第三方插件 dsh-workbuddy-connect 的状态路由，与「用量统计」不是一回事；需要额度的用户继续用 dsh-workbuddy-quota@0.2.0（仍可用，不再维护）。",
+      "collectNote": "自研。0.3.0 首次收录：修复「删除会话连带删除用量」的缺陷（新增只增不减的每会话用量台账），并把包名从 dsh-workbuddy-quota 收敛为用量统计本身（dsh-usage-stats）。",
+      "replaces": "dsh-workbuddy-quota@0.2.0",
+      "hasSource": false,
+      "sourcePath": null,
+      "pluginConfig": "plugins/dsh-usage-stats/plugin.json",
+      "readme": "plugins/dsh-usage-stats/README.md",
+      "dshVersion": "0.1.6-alpha.1",
+      "tarball": "plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz",
+      "sha256": "dbe6b427e67ce70c069ff0adbc41bfe4a4c4558db712eb6bb47a8b0eeff34cae",
+      "bytes": 26727,
+      "install": {
+        "method": "tarball",
+        "url": "https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz",
+        "sha256": "dbe6b427e67ce70c069ff0adbc41bfe4a4c4558db712eb6bb47a8b0eeff34cae",
+        "bytes": 26727,
+        "tarball": "plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz",
+        "dshVersion": "0.1.6-alpha.1",
+        "commands": [
+          "Invoke-WebRequest -Uri https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz -OutFile $env:TEMP\\dsh-usage-stats-0.3.0.tgz",
+          "dsh plugin --profile web add $env:TEMP\\dsh-usage-stats-0.3.0.tgz"
+        ]
+      },
+      "versions": [
+        {
+          "version": "0.3.0",
+          "dshVersion": "0.1.6-alpha.1",
+          "status": "latest",
+          "tarball": "plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz",
+          "url": "https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-usage-stats/0.1.6-alpha.1/dsh-usage-stats-0.3.0.tgz",
+          "snapshot": "snapshots/dsh-usage-stats/0.3.0/dsh-usage-stats-0.3.0.tgz",
+          "sha256": "dbe6b427e67ce70c069ff0adbc41bfe4a4c4558db712eb6bb47a8b0eeff34cae",
+          "bytes": 26727,
+          "verifiedAt": "2026-09-18",
+          "supersededBy": null,
+          "supersedesNote": null
+        }
+      ]
+    },
+    {
       "id": "dsh-workbuddy-quota",
       "package": "dsh-workbuddy-quota",
       "version": "0.2.0",
@@ -456,8 +519,8 @@
       "peerVerdict": "ok",
       "peerNote": "只约束 cordis 与 react，不对 dsh 运行时版本通道设 pin。",
       "coexistenceWarning": null,
-      "notes": null,
-      "collectNote": "自研。包内未附 LICENSE 正文。",
+      "notes": "★ 0.2.0 有一个结构性缺陷，已在继任者 dsh-usage-stats@0.3.0 里修复：本包每次都现场折叠 $DSH_HOME/sessions/ 下的会话日志，而会话日志是可以被删掉的（dsh-session-cleanup 就是 rm -rf 会话目录）—— 日志一没，那部分历史用量就从统计里凭空消失：用户清理一次侧边栏，数字就下降一次。0.3.0 在折叠之外加了一份只增不减的每会话用量台账，删除会话不再连带删除用量。本包**不再维护**，字节原样保留以便回滚（需要 WorkBuddy 额度 pill 的用户仍可继续装它，但两个包的 Token 用量页会重复，建议只留一个）。★ 其余实现要点（两个功能都是只读、折叠为什么必须复刻 DSH 自己的 tokenUsage 投影、三个 load-bearing 细节、已知统计边界）见本仓库 plugins/dsh-workbuddy-quota/README.md 与包内 README。",
+      "collectNote": "自研。包内未附 LICENSE 正文。已被 dsh-usage-stats@0.3.0 取代（用量统计部分修复了「删会话丢用量」），保留以便回滚。",
       "replaces": null,
       "hasSource": false,
       "sourcePath": null,
@@ -483,15 +546,15 @@
         {
           "version": "0.2.0",
           "dshVersion": "0.1.6-alpha.1",
-          "status": "latest",
+          "status": "superseded",
           "tarball": "plugins/dsh-workbuddy-quota/0.1.6-alpha.1/dsh-workbuddy-quota-0.2.0.tgz",
           "url": "https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-workbuddy-quota/0.1.6-alpha.1/dsh-workbuddy-quota-0.2.0.tgz",
           "snapshot": "snapshots/dsh-workbuddy-quota/0.2.0/dsh-workbuddy-quota-0.2.0.tgz",
           "sha256": "744a39879202782bdbca4d8235094949b73accf7c2f0153841872aed2d2388f8",
           "bytes": 14507,
           "verifiedAt": "2026-09-17",
-          "supersededBy": null,
-          "supersedesNote": null
+          "supersededBy": "dsh-usage-stats@0.3.0",
+          "supersedesNote": "用量统计这一半已由 dsh-usage-stats@0.3.0 取代：0.2.0 现场折叠会话日志，而日志会被 dsh-session-cleanup 删掉，于是删除会话会连带删掉它的历史用量；0.3.0 增加了一份只增不减的每会话用量台账，删会话不再丢账。本版仍可安装（额度 pill 只有它有），但不再维护。"
         }
       ]
     }

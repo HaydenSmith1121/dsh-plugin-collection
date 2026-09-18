@@ -1,5 +1,22 @@
 # dsh-workbuddy-quota
 
+> ## ⚠️ 已被 [`dsh-usage-stats`](../dsh-usage-stats/README.md) 取代
+>
+> **本包不再维护。** 0.2.0 有一个结构性缺陷：它每次都**现场折叠**会话日志来统计用量，
+> 而会话日志是会被删掉的（`dsh-session-cleanup` 就是 `rm -rf` 会话目录）——
+> 日志一没，那部分历史用量就从统计里凭空消失：**清理一次侧边栏，用量就下降一次**。
+>
+> `dsh-usage-stats@0.3.0` 在折叠之外加了一份**只增不减的每会话用量台账**，
+> 从结构上修掉了它，并**只保留用量统计**这一半。本页保留的是**回滚用的原样字节**，
+> 以及只有本包才有的 **WorkBuddy 额度 pill** 的说明。
+>
+> | 你想要 | 装哪个 |
+> |---|---|
+> | Token 用量统计（且删会话不丢账） | [`dsh-usage-stats`](../dsh-usage-stats/README.md) `0.3.0` |
+> | WorkBuddy 剩余额度 pill | 本包 `0.2.0`（仍可用，不再维护） |
+>
+> **两个包不要同时装**：它们的 Token 用量是同一个设置分区里的两页。
+
 在 DeepSeek Harness 界面上显示 **WorkBuddy 的剩余额度**，并统计**这台 harness 花了多少
 token**。适配 dsh `0.1.6-alpha.1`，两个功能都是**只读**的：不持有凭据、不联系 provider、
 不改变模型路由。
