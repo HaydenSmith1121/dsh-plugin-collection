@@ -10,7 +10,7 @@
     "为每个插件生成市场侧的配置文件。所以这里的字段就是市场看到的全部事实。"
   ],
   "schemaVersion": 1,
-  "generatedAt": "2026-09-17T16:11:45.963Z",
+  "generatedAt": "2026-09-18T02:00:38.215Z",
   "repo": {
     "slug": "HaydenSmith1121/dsh-plugin-collection",
     "url": "https://github.com/HaydenSmith1121/dsh-plugin-collection",
@@ -22,9 +22,9 @@
     "profile": "web"
   },
   "counts": {
-    "total": 6,
+    "total": 7,
     "withSource": 2,
-    "versions": 8
+    "versions": 9
   },
   "plugins": [
     {
@@ -97,6 +97,70 @@
           "snapshot": "snapshots/dsh-ark-plans/0.2.0/dsh-ark-plans-0.2.0.tgz",
           "sha256": "04df5a7fec08df8419b4c208c08f3d8cd6a264be87febef9bbcac0cc4806fd40",
           "bytes": 26247,
+          "verifiedAt": "2026-09-17",
+          "supersededBy": null,
+          "supersedesNote": null
+        }
+      ]
+    },
+    {
+      "id": "dsh-connect-trae",
+      "package": "dsh-connect-trae",
+      "version": "2.0.4-dsh.1",
+      "title": "Trae 模型接入（加固分支）",
+      "summary": "把本机已登录的 Trae 模型（国内版 / 国际版双 provider）接进 Harness。本包是上游 dingminhua/dsh-connect-trae v2.0.4 的加固分支：插件自身启动失败时不再牵连整个 Harness。",
+      "tags": [
+        "模型接入",
+        "第三方",
+        "需登录",
+        "加固分支"
+      ],
+      "author": "dingminhua（上游）· HaydenSmith1121（本分支维护）",
+      "license": "MIT",
+      "repo": "https://github.com/HaydenSmith1121/dsh-plugin-collection",
+      "homepage": "https://github.com/dingminhua/dsh-connect-trae",
+      "origin": "third-party",
+      "originNote": "上游作者 dingminhua（https://github.com/dingminhua/dsh-connect-trae，MIT）。本仓库只做加固：修复「插件自身启动失败牵连整个 Harness」的启动链缺陷，Trae 协议 / 凭据 / 区域拆分 / 模型目录 / 设置卡片全部保留上游实现，未做任何改动。差异说明见包内 FORK.md。",
+      "needsConfig": true,
+      "usageNeedsConfig": true,
+      "risky": false,
+      "peerRuntimePin": "@deepseek-ai/dsh-* >=0.1.5-0 <0.2.0-0（含本仓库基线 0.1.6-alpha.1）, @deepseek-ai/cordis ^4.0.1-rc.1, react ^18.2.0",
+      "peerVerdict": "ok",
+      "peerNote": "范围两端都带 -0，正是为了把预发布版纳入比较 —— 0.1.6-alpha.1 满足该范围（0.1.6-alpha.1 >= 0.1.5-0 且 < 0.2.0-0）。上游 2.0.4 在 dsh 0.1.6-alpha.1 上实测可用，本分支未改动任何 peer 声明。",
+      "coexistenceWarning": "本包与上游 dsh-connect-trae 是同一个包名（dsh-connect-trae）、同一个 provider 路由（trae / trae-global）、同一个设置命名空间（trae）。**绝不可同时安装**：后装者会覆盖 node_modules 里的同名包，且 profile 的 dsh.profile.bundles 里会出现两条同名条目。从上游切换过来时先 remove 再 add。",
+      "notes": "★ 为什么要收这一版：上游把两个 provider、模型目录发现、可配置 provider 目录与 teardown 注册全放在同一条 `Promise.all(...).then(...)` 链里，且该链中的失败未被观察。回环 shim 绑定失败（Trae 未安装 / 未登录 / 端口不可用）时，两个 provider 会一起静默消失，Harness 里一个 Trae 模型都没有，日志只有一句不提区域、不提原因的 `loopback shim failed; providers not registered`；而该链里任何其它抛出（例如 HMR 重载后 ctx.effect 落在已消失的 fiber 上）会留下未捕获拒绝，被 DSH 的 fail-loud 处理器变成 `fatal load failure` 并 exit 1 —— 表现就是「装了 Trae 插件之后 Harness 起不来」。\\n★ 本分支改了什么（仅 src/shim.ts、src/adapter.ts、src/index.ts 三个文件）：(1) shim 的 bind 结果只记录一次，新增 listening / whenListening(timeoutMs) / reason() 三个不抛异常、不挂起的就绪访问器，失败只是一个可降级的 false 并带出真实原因；(2) createTraeAdapter 改为接收已解析的 baseUrl / apiKey 字符串，就绪依赖写进签名，类型层面无法再绕过；(3) 每个区域各自 try/catch 注册 provider，一区失败只降级该区并报出区域名；(4) 目录注册单独兜底；(5) teardown 改在 apply 中同步注册并经守卫包装；(6) 启动 seed 与最终 boot() 各自兜底，任何路径都不再产生未捕获拒绝。\\n★ 测试：上游 236 例全部保留，新增 7 例（就绪契约 4、失败 bind 降级 1、启动不产生未捕获拒绝 3），共 243 例全绿；pnpm run typecheck 通过。\\n★ 与上游的关系：本包是 fork，不是重写。若上游采纳等效修复，本分支应退役。tarball 内同时包含 lib/（运行时加载的产物）与 src/、tests/（便于审计与复现），因此体积明显大于上游包。\\n★ 日志：插件的降级告警走 ctx.logger.warn，由 Harness 自己的日志通道输出，不打印到 dsh web 的 stdout。",
+      "collectNote": "第三方插件的加固分支；源码与测试随 tarball 分发。",
+      "replaces": null,
+      "hasSource": false,
+      "sourcePath": null,
+      "pluginConfig": "plugins/dsh-connect-trae/plugin.json",
+      "readme": "plugins/dsh-connect-trae/README.md",
+      "dshVersion": "0.1.6-alpha.1",
+      "tarball": "plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz",
+      "sha256": "b1ea399aa94689b3ad3524c654b8e336f7e66f56da8bf2d7de1998536fcbbffa",
+      "bytes": 518673,
+      "install": {
+        "method": "tarball",
+        "url": "https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz",
+        "sha256": "b1ea399aa94689b3ad3524c654b8e336f7e66f56da8bf2d7de1998536fcbbffa",
+        "bytes": 518673,
+        "tarball": "plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz",
+        "dshVersion": "0.1.6-alpha.1",
+        "commands": [
+          "Invoke-WebRequest -Uri https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz -OutFile $env:TEMP\\dsh-connect-trae-2.0.4-dsh.1.tgz",
+          "dsh plugin --profile web add $env:TEMP\\dsh-connect-trae-2.0.4-dsh.1.tgz"
+        ]
+      },
+      "versions": [
+        {
+          "version": "2.0.4-dsh.1",
+          "dshVersion": "0.1.6-alpha.1",
+          "status": "latest",
+          "tarball": "plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz",
+          "url": "https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz",
+          "snapshot": "snapshots/dsh-connect-trae/2.0.4-dsh.1/dsh-connect-trae-2.0.4-dsh.1.tgz",
+          "sha256": "b1ea399aa94689b3ad3524c654b8e336f7e66f56da8bf2d7de1998536fcbbffa",
+          "bytes": 518673,
           "verifiedAt": "2026-09-17",
           "supersededBy": null,
           "supersedesNote": null

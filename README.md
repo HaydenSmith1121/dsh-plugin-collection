@@ -95,11 +95,12 @@ dsh plugin --profile web add /tmp/dsh-memory-0.1.0.tgz
 
 ## 🧩 插件一览
 
-**共 6 个插件 / 8 个版本**，全部以 dsh `0.1.6-alpha.1` 为基线。
+**共 7 个插件 / 9 个版本**，全部以 dsh `0.1.6-alpha.1` 为基线。
 
 | 插件 | 当前版本 | 作用 | 安装方式 |
 |---|---|---|---|
 | [`dsh-ark-plans`](#dsh-ark-plans) | `0.2.0` | 火山方舟 Agent Plan / Coding Plan 两条套餐车道接入，含会话标题栏额度 pill | tarball → `dsh plugin add` |
+| [`dsh-connect-trae`](#dsh-connect-trae) | `2.0.4-dsh.1` | Trae 模型接入（国内版 / 国际版双 provider）—— **上游 v2.0.4 的加固分支** | tarball → `dsh plugin add`（**先卸上游同名包**） |
 | [`dsh-excel-viewer`](#dsh-excel-viewer) | `0.1.0` | 在右侧预览面板直接打开 xlsx / xlsm / xls / csv / tsv | tarball → `dsh plugin add` |
 | [`dsh-memory`](#dsh-memory) | `0.1.0` | 跨会话长期记忆：turn 结束蒸馏成笔记，下次会话自动召回 | tarball → `dsh plugin add` |
 | [`dsh-opencode-go-plus`](#dsh-opencode-go-plus) | `0.3.0` | OpenCode Go 模型供应商（自研维护分支，取代 `dsh-opencode-go`） | tarball → `dsh plugin add`（**先卸旧包**） |
@@ -114,6 +115,7 @@ dsh plugin --profile web add /tmp/dsh-memory-0.1.0.tgz
 | 插件 | 版本 | sha256 | 字节数 |
 |---|---|---|---|
 | `dsh-ark-plans` | `0.2.0` | `04df5a7fec08df8419b4c208c08f3d8cd6a264be87febef9bbcac0cc4806fd40` | 26247 |
+| `dsh-connect-trae` | `2.0.4-dsh.1` | `b1ea399aa94689b3ad3524c654b8e336f7e66f56da8bf2d7de1998536fcbbffa` | 518673 |
 | `dsh-excel-viewer` | `0.1.0` | `5f7a4236b6755254886da83b7e2d096d2124e309ea4287ff9fd8bc6b566db97b` | 384363 |
 | `dsh-memory` | `0.1.0` | `e773678ab7b681390a6e7f643ab0c5cee87d996c9d662da6ca004b1c17e60a3e` | 17663 |
 | `dsh-opencode-go-plus` | `0.3.0` | `481b8f6bbdee38dc15d2b5cc729fbe7bc25edea6ce52d0f11e69f5d66252cc37` | 65141 |
@@ -199,9 +201,95 @@ dsh plugin --profile web remove dsh-ark-plans
 
 ---
 
+<a name="dsh-connect-trae"></a>
+
+### 2. `dsh-connect-trae` — Trae 模型接入（加固分支）
+
+**作用**：把本机已登录的 Trae 账号（**国内版与国际版**）接进 Harness 当模型供应商 ——
+国内版注册为 `trae`，国际版注册为 `trae-global`，两者可同时使用；另带只读的用量/积分概览
+与模型管理卡片。
+
+> ⚠️ **这是第三方插件的加固分支，不是本仓库自研。** 上游：
+> [`dingminhua/dsh-connect-trae`](https://github.com/dingminhua/dsh-connect-trae) `v2.0.4`
+> （MIT，commit `9c7c113`）。Trae 协议、凭据处理、区域拆分、模型目录、设置卡片**全部保留上游实现**。
+
+**本分支只修一件事，但正是它当初被误诊的那件事 —— 插件自身的问题会外溢成 Harness 级故障：**
+
+上游把两个 provider 的注册、模型目录发现、可配置 provider 目录、teardown 注册全放进**同一条**
+`Promise.all(...).then(...)` 链，且**该链中的失败没有被观察**：
+
+* **实测后果**：回环 shim 绑不上时（Trae 未安装 / 未登录 / 端口不可用）`shim.ready` 拒绝 →
+  `then` 体完全不执行 → **两个 provider 一起静默消失**，Harness 里一个 Trae 模型都没有，
+  日志只有一句不提区域、不提原因的 `loopback shim failed; providers not registered`。
+* **潜在后果**：该链里任何**其它**抛出（HMR 重载后 `ctx.effect` 落在已消失的 fiber 上等）
+  会留下**未被观察的拒绝** → DSH 的 fail-loud 处理器 → `fatal load failure` → **exit 1**。
+  这条路径上，一个第三方模型 provider 确实足以让整个 Harness 起不来。
+
+**改法**：`TraeShim` 新增 `listening` / `whenListening(timeoutMs)` / `reason()` 三个
+**不抛异常、不挂起**的就绪访问器（失败只是一个可降级的 `false`，并带出真实原因）；
+`createTraeAdapter` 改为接收已解析的 `baseUrl` / `apiKey` 字符串，就绪依赖写进签名；
+**每个区域各自 `try/catch` 注册**，一区失败只降级该区并报出区域名；目录注册单独兜底；
+teardown 改在 `apply` 中同步注册并加守卫；启动 seed 与最终 `boot()` 各自兜底 ——
+**任何路径都不再产生未捕获拒绝**。
+
+改动仅 `src/shim.ts`、`src/adapter.ts`、`src/index.ts` 三个文件；测试 **243 例全绿**
+（上游 236 例全部保留 + 7 例回归）。
+
+| 项 | 值 |
+|---|---|
+| 版本 | `2.0.4-dsh.1`（上游 `2.0.4` + 加固） |
+| tarball | `plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz` |
+| sha256 | `b1ea399aa94689b3ad3524c654b8e336f7e66f56da8bf2d7de1998536fcbbffa` |
+| 字节数 | `518673` |
+| peer 结论 | `ok` —— `@deepseek-ai/dsh-*` 为 `>=0.1.5-0 <0.2.0-0`（含基线 `0.1.6-alpha.1`） |
+| 需要配置 | ✅ **要**（登录 Trae 后在卡片里选账号；Token 不写入 DSH 设置） |
+
+**安装**
+
+```powershell
+Invoke-WebRequest -Uri https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz -OutFile $env:TEMP\dsh-connect-trae-2.0.4-dsh.1.tgz
+(Get-FileHash $env:TEMP\dsh-connect-trae-2.0.4-dsh.1.tgz -Algorithm SHA256).Hash.ToLower()   # 应为 b1ea399aa94689b3ad3524c654b8e336f7e66f56da8bf2d7de1998536fcbbffa
+dsh plugin --profile web add $env:TEMP\dsh-connect-trae-2.0.4-dsh.1.tgz
+```
+
+```bash
+curl -fL -o /tmp/dsh-connect-trae-2.0.4-dsh.1.tgz https://raw.githubusercontent.com/HaydenSmith1121/dsh-plugin-collection/main/plugins/dsh-connect-trae/0.1.6-alpha.1/dsh-connect-trae-2.0.4-dsh.1.tgz
+sha256sum /tmp/dsh-connect-trae-2.0.4-dsh.1.tgz
+dsh plugin --profile web add /tmp/dsh-connect-trae-2.0.4-dsh.1.tgz
+```
+
+> ⛔ **绝不可与上游 `dsh-connect-trae` 同时安装**：同一个包名、同一个 provider 路由
+> （`trae` / `trae-global`）、同一个设置命名空间（`trae`）。从上游切换过来**先卸后装**：
+>
+> ```bash
+> dsh plugin --profile web remove dsh-connect-trae
+> dsh plugin --profile web add /tmp/dsh-connect-trae-2.0.4-dsh.1.tgz
+> ```
+
+**配置**：重启后打开 **设置 → 模型**，`Trae` 与 `Trae Global` 两行各选一次账号
+（区域由凭证自带 `userRegion` 自动判定）；然后在插件卡片的「国内版 / 国际版」tab 里
+刷新并保存模型目录。**登录态不随包迁移**，换机器要重新登录。
+
+**怎么确认装对了**：一个区域没登录时，日志会明确报出**是哪个区域、什么原因**，
+而**另一个区域照常提供模型** —— 这正是本分支要保证的行为。
+
+**卸载**
+
+```bash
+dsh plugin --profile web remove dsh-connect-trae
+```
+
+> 本包的 tarball 里**同时带 `src/` 与 `tests/`**（上游包只有 `lib/` 与文档），
+> 就是为了让这次加固可被独立复核 —— 这也是它 `518673` 字节、明显大于上游包的原因。
+> 完整机制、修复清单与复现步骤见 [`plugins/dsh-connect-trae/README.md`](./plugins/dsh-connect-trae/README.md)。
+>
+> **本分支不打算长期分叉**：上游若采纳等效修复，直接装上游包即可。
+
+---
+
 <a name="dsh-excel-viewer"></a>
 
-### 2. `dsh-excel-viewer` — Excel / CSV 表格预览
+### 3. `dsh-excel-viewer` — Excel / CSV 表格预览
 
 **作用**：让 `.xlsx` / `.xlsm` / `.xls` / `.csv` / `.tsv` 在 harness 里直接打开 ——
 点文件即在右侧预览面板渲染成只读表格（多工作表标签、行列号、工作簿自带格式的数值与日期、
@@ -252,7 +340,7 @@ dsh plugin --profile web remove dsh-excel-viewer
 
 <a name="dsh-memory"></a>
 
-### 3. `dsh-memory` — 跨会话长期记忆
+### 4. `dsh-memory` — 跨会话长期记忆
 
 **作用**：turn 结束时把该轮的新对话蒸馏成 markdown 笔记写进 `$DSH_HOME/memory/`，
 每次模型请求前把「全局笔记 + 当前工作区笔记」作为作用域提示段注入。
@@ -306,7 +394,7 @@ dsh plugin --profile web remove dsh-memory
 
 <a name="dsh-opencode-go-plus"></a>
 
-### 4. `dsh-opencode-go-plus` — OpenCode Go 模型供应商（自研维护分支）
+### 5. `dsh-opencode-go-plus` — OpenCode Go 模型供应商（自研维护分支）
 
 **作用**：OpenCode Go 的模型供应商适配器，本仓库维护的**派生分支**。
 相对基线 `dsh-opencode-go@0.1.2` 的主要改动：修复上游改名后客户端注册 id 错配导致的
@@ -380,7 +468,7 @@ dsh plugin --profile web remove dsh-opencode-go-plus
 
 <a name="dsh-session-cleanup"></a>
 
-### 5. `dsh-session-cleanup` — 已归档会话的真实删除
+### 6. `dsh-session-cleanup` — 已归档会话的真实删除
 
 **作用**：上游只有 `archive` / `unarchive`，`SessionPersistence` **没有 delete**，
 所以本插件补上真正删除会话日志的能力（因此**带宿主半，必须在进程启动时挂载**），
@@ -432,7 +520,7 @@ dsh plugin --profile web remove dsh-session-cleanup
 
 <a name="dsh-workbuddy-quota"></a>
 
-### 6. `dsh-workbuddy-quota` — WorkBuddy 额度与用量
+### 7. `dsh-workbuddy-quota` — WorkBuddy 额度与用量
 
 **作用**：在界面上显示 WorkBuddy 的**剩余额度**（composer 模型选择器旁的积分 pill），
 并统计**本机 harness 花了多少 token**（设置 → Token usage，可选 Today / Last 7 days /
@@ -728,6 +816,7 @@ dsh plugin --profile web remove <包名>     # 例如 dsh plugin --profile web r
 
 | 插件 | 第三方成分 | 许可 |
 |---|---|---|
+| `dsh-connect-trae` | **派生分支**：上游 [`dingminhua/dsh-connect-trae`](https://github.com/dingminhua/dsh-connect-trae) `v2.0.4`（版权 © 2026 LaoDing）的完整代码，本仓库只改 `src/shim.ts`、`src/adapter.ts`、`src/index.ts` 三个文件的启动链 | MIT（上游许可；归属见包内 `LICENSE`、`THIRD_PARTY_NOTICES.md` 与 `FORK.md`） |
 | `dsh-opencode-go-plus` | 派生自 [`Duskriver/dsh-opencode-go`](https://github.com/Duskriver/dsh-opencode-go) `@0.1.2`；其适配器、设置 UI 与 `src/conversion/*` 又派生自 DeepSeek Harness | MIT（归属见包内 `THIRD_PARTY_NOTICES.md` 与 `docs/derivation.md`） |
 | `dsh-excel-viewer` | **内联分发** SheetJS Community Edition `0.20.3`（版权 © 2012-present SheetJS LLC） | Apache-2.0（全文见 <https://www.apache.org/licenses/LICENSE-2.0>；归属见包内 `THIRD_PARTY_NOTICES.md`） |
 | 其余 4 个 | 无第三方成分 | MIT |
@@ -738,6 +827,7 @@ dsh plugin --profile web remove <包名>     # 例如 dsh plugin --profile web r
 >
 > 包内是否随附许可正文各不相同（`dsh-memory` 与 `dsh-workbuddy-quota` 的 tarball
 > **未附** `LICENSE` 正文，`plugin.json` 声明 MIT）。如实记录，不做补写。
+> `dsh-connect-trae` 随包附上游 `LICENSE` 全文，未做改写。
 
 **第三方插件的版权归各自原作者所有。** 如你是某个插件的原作者、希望调整或移除收录方式，
 请开 Issue 或直接联系，我们会立即处理。
