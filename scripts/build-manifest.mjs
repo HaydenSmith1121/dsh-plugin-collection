@@ -123,6 +123,11 @@ for (const dir of dirs) {
     author: cfg.author ?? null,
     license: cfg.license ?? null,
     repo: cfg.repo ?? `https://github.com/${REPO_SLUG}`,
+    // 源码仓。「repo」是用户在界面上点开的那个地址（可能是上游），
+    // 市场侧要刷 star / pushedAt 时得知道去哪儿查 —— 两者不一定同一个仓库
+    // （例：dsh-connect-trae 是上游第三方插件的加固分支，源码在自己的仓库里）。
+    // 没写就退回 repo，保持既有行为。
+    githubRepo: cfg.githubRepo ?? null,
     homepage: cfg.homepage ?? null,
     origin: cfg.origin ?? 'self',
     originNote: cfg.originNote ?? null,
